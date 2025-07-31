@@ -1,0 +1,1 @@
+{"version":3,"file":"otpController.d.ts","sourceRoot":"","sources":["../../src/controllers/otpController.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,QAAQ,EAAE,MAAM,SAAS,CAAC;AAO5C,eAAO,MAAM,UAAU,GAAU,KAAK,OAAO,EAAE,KAAK,QAAQ,KAAG,OAAO,CAAC,QAAQ,CA8B9E,CAAC;AAEF,eAAO,MAAM,SAAS,GAAU,KAAK,OAAO,EAAE,KAAK,QAAQ,KAAG,OAAO,CAAC,QAAQ,CA0D7E,CAAC"}
