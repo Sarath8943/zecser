@@ -15,7 +15,7 @@ export const sendEmail = async (email: string, text: string) => {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: " Your OTP Code",
+    subject: "Your OTP Code",
     text: `Your OTP is: ${text}`,
   };
 
@@ -24,5 +24,6 @@ export const sendEmail = async (email: string, text: string) => {
     console.log(`✅ Email sent to ${email}`);
   } catch (error) {
     console.error("❌ Email sending failed:", error);
+    throw error; // throw again so backend can respond with 500
   }
 };

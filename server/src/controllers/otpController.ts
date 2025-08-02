@@ -28,14 +28,18 @@ export const requestOTP = async (req: Request, res: Response): Promise<Response>
       { upsert: true, new: true }
     );
 
-    await sendEmail(email, otp);
+    await sendEmail(email, otp); // ← if this fails, it throws now
 
     return res.status(200).json({ message: "OTP sent to email" });
   } catch (error) {
     console.error("OTP Request Error:", error);
-    return res.status(500).json({ message: "Failed to send OTP" });
+    return res.status(500).json({ 
+      message: "Failed to send OTP",
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 };
+
 
 export const verifyOTP = async (req: Request, res: Response): Promise<Response> => {
   const { email, otp } = req.body;
