@@ -1,14 +1,18 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import User, { IUser } from "../models/userModel";
-import { generateToken } from "../utils/token";
+import jwt, { VerifyErrors } from "jsonwebtoken";
+import User from "../models/userModel";
+import { generateTokens } from "../utils/token";
 import { passwordsMatch } from "../utils/passwordUtils";
+import OtpModel from "../models/otpModel";
+import { requestOTP, } from "../controllers/otpController";
+import { verifyOTP } from "../controllers/otpController";
+
+
+
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
-    // console.log("Signup Request:", req.body); // ✅ debug log
-
     const { name, email, password, confirmPassword, role } = req.body;
 
     if (!name || !email || !password || !confirmPassword || !role) {
@@ -16,119 +20,172 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-
     if (!passwordsMatch(password, confirmPassword)) {
       res.status(400).json({ message: "Passwords do not match" });
       return;
     }
 
-    const userExist = await User.findOne({ email });
-    if (userExist) {
+    // Don't save user or OTP here, just confirm details are valid.
+    res.status(200).json({
+      message: "Signup details received. OTP will be sent to email for verification.",
+    });
+
+  } catch (error: any) {
+    console.error("Signup error:", error.message || error);
+    res.status(500).json({ message: "Internal server error", error: error.message || "Unknown error" });
+  }
+};
+
+
+
+
+export const login = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password } = req.body;
+
+    const existingUser = await User.findOne({ email });
+    if (!existingUser || !existingUser.isEmailVerified) {
+      res.status(403).json({ message: "Email not verified or user doesn't exist" });
+      return;
+    }
+
+    const isMatch = await bcrypt.compare(password, existingUser.password);
+    if (!isMatch) {
+      res.status(401).json({ message: "Invalid email or password" });
+      return;
+    }
+
+    const { accessToken, refreshToken } = generateTokens(
+      existingUser._id.toString(),
+      existingUser.role
+    );
+
+    // ✅ Set both tokens in cookies
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // ✅ Send plain text success message only
+    res.status(200).send("Login successfully");
+
+  } catch (error: any) {
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+
+export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, otp, name, password, role } = req.body;
+
+    if (!email || !otp || !name || !password || !role) {
+      res.status(400).json({ message: "All fields are required" });
+      return;
+    }
+
+    // Check OTP record
+    const otpRecord = await OtpModel.findOne({ email });
+
+    if (
+      !otpRecord ||
+      otpRecord.otp !== otp ||
+      otpRecord.expiresAt < new Date()
+    ) {
+      res.status(400).json({ message: "Invalid or expired OTP" });
+      return;
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
       res.status(400).json({ message: "User already exists" });
       return;
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    // console.log("Hashed password:", hashedPassword);
 
-
-    const newUser = new User({
+    // Create new user
+    const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
       role,
     });
 
-    const savedUser = await newUser.save();
+    // Delete OTP record after successful registration
+    await OtpModel.deleteOne({ email });
 
-
-    const token = generateToken(savedUser._id.toString(), savedUser.role);
-    if (!token) {
-      res.status(500).json({ message: "Token generation failed" });
-      return;
-    }
-
-    // ✅ Set auth cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-    });
-
-    // ✅ Send success response
     res.status(201).json({
-      message: "Signup successful",
-      success: true,
+      message: "OTP verified and user registered successfully",
       user: {
-        id: savedUser._id,
-        name: savedUser.name,
-        email: savedUser.email,
-        role: savedUser.role,
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
       },
     });
   } catch (error: any) {
-    console.error("Signup error:", error.message || error);
-    res.status(500).json({
-      message: "Internal server error",
-      error: error.message || "Unknown error",
-    });
+    console.error("OTP verification error:", error.message || error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// LOGIN
 
-export const login = async (req: Request, res: Response): Promise<void> => {
+export const refreshToken = async (req: Request, res: Response): Promise<void> => {
   try {
-
-      // console.log("Login request received:", req.body);
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({ message: "All fields are required" });
+    const token = req.cookies.refreshToken;
+    if (!token) {
+      res.status(401).json({ message: "Refresh token not found" });
       return;
     }
 
-    const user = (await User.findOne({ email })) as IUser | null;
-      // console.log("User found:", user);
-    if (!user) {
-      res.status(400).json({ message: "User not found" });
-      return;
-    }
+    jwt.verify(token, process.env.REFRESH_TOKEN_SECRET!, async (err: VerifyErrors | null, decoded: any) => {
+      if (err) {
+        res.status(403).json({ message: "Invalid refresh token" });
+        return;
+      }
 
-    const isPasswordMatch = await bcrypt.compare(password, user.password);
-    //  console.log("Password match:", isPasswordMatch);
-    if (!isPasswordMatch) {
-      res.status(400).json({ message: "Invalid credentials" });
-      return;
-    }
+      const user = await User.findById(decoded.userId);
+      if (!user) {
+        res.status(404).json({ message: "User not found" });
+        return;
+      }
 
-    const token = generateToken(user._id.toString(), user.role);
+      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(
+        user._id.toString(),
+        user.role
+      );
 
-//  console.log("Generated token:", token);
+      res.cookie("refreshToken", newRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
-      path: "/",
+      res.status(200).json({ accessToken: newAccessToken });
     });
-// console.log("Login successful, sending response");
-   
-    res.status(200).json({
-      message: "Login successfully",
-    });
-
   } catch (error: any) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: error.message || "Server error" });
-    
+    console.error("Refresh error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
-
 
 export const checkUser = async (req: Request, res: Response): Promise<void> => {
   try {
-  
     const userId = (req as any).user?.id;
     const role = (req as any).user?.role;
 
@@ -156,7 +213,6 @@ export const checkUser = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-
 export const logout = (req: Request, res: Response): void => {
   try {
     res.clearCookie("token", {
@@ -169,3 +225,4 @@ export const logout = (req: Request, res: Response): void => {
     res.status(500).json({ message: error.message });
   }
 };
+
