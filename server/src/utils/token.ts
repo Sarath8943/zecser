@@ -1,29 +1,17 @@
-// src/utils/token.ts
+// utils/token.ts
+import jwt from "jsonwebtoken";
 
-import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET!;
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET!;
 
-
-dotenv.config();
-export const generateTokens = (userId: string, role: string) => {
-  const jwtSecret = process.env.JWT_SECRET;
-  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
-
-  if (!jwtSecret || !jwtRefreshSecret) {
-    throw new Error("JWT_SECRET or JWT_REFRESH_SECRET is not defined in environment variables");
-  }
-
-  const accessToken = jwt.sign(
-    { id: userId, role },
-    jwtSecret,
-    { expiresIn: '15m' }
-  );
-
-  const refreshToken = jwt.sign(
-    { id: userId, role },
-    jwtRefreshSecret,
-    { expiresIn: '7d' }
-  );
-
-  return { accessToken, refreshToken };
+export const generateAccessToken = (userId: string, role: string) => {
+  return jwt.sign({ id: userId, role }, ACCESS_TOKEN_SECRET, { expiresIn: "15m" });
 };
+
+export const generateRefreshToken = (userId: string, role: string) => {
+  return jwt.sign({ id: userId, role }, REFRESH_TOKEN_SECRET, { expiresIn: "7d" });
+};
+
+
+
+

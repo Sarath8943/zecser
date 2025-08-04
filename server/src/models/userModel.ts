@@ -5,10 +5,11 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
+  conforimPassword?: string;
   forgotPasswordToken?: string;
   forgotPasswordExpires?: Date;
   role: 'user' | 'employer' | 'admin' | 'superAdmin';
-  isEmailVerified?: boolean; // ✅ Add this to the interface
+ 
 }
 
 const UserSchema: Schema<IUser> = new Schema(
@@ -16,6 +17,7 @@ const UserSchema: Schema<IUser> = new Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    conforimPassword: { type: String },
     forgotPasswordToken: { type: String },
     forgotPasswordExpires: { type: Date },
     role: {
@@ -23,10 +25,7 @@ const UserSchema: Schema<IUser> = new Schema(
       enum: ['user', 'employer', 'admin', 'superAdmin'],
       default: 'user',
     },
-    isEmailVerified: {
-      type: Boolean,
-      default: false, // ✅ Unverified by default
-    },
+    
   },
   { timestamps: true }
 );

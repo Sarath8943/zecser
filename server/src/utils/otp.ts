@@ -7,3 +7,9 @@ export const otpExpiry = (): Date => {
   expiry.setMinutes(expiry.getMinutes() + 10); // 10 minutes expiry
   return expiry;
 };
+
+
+export const sendOtpEmail = async (email: string, otp: string) => {
+  console.log(`Sending OTP ${otp} to email: ${email}`);
+  // Integrate real email provider like SendGrid, Mailgun, or Nodemailer
+};

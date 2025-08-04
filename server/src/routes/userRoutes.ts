@@ -3,8 +3,7 @@ import { checkUser, login, logout, signup } from '../controllers/userController'
 
 
 const router: Router = express.Router();
-
-router.post("/signup",signup );
+router.post("/sign", signup);
 router.post("/login", login);
 // router.post("/forgot-password", forgotPassword);
 router.post("/logout",logout );

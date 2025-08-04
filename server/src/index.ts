@@ -23,6 +23,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api/user", userRoutes);
+
+  
 app.use("/api/otp", otpRoutes); // ✅ Now no error
 
 app.get("/", (_req, res) => {

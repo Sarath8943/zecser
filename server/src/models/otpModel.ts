@@ -1,18 +1,15 @@
-// models/otpModel.ts
-import mongoose from "mongoose";
+import { Schema, Document,model } from "mongoose";
 
-const otpSchema = new mongoose.Schema(
-  {
-    email: { type: String, required: true, unique: true },
-    otp: { type: String, required: true },
-    expiresAt: { type: Date, required: true },
-    attempts: { type: Number, default: 0 },
-    verified: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now },
-  }
-);
 
-// TTL Index to auto-delete after `expiresAt`
-otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+export interface IOTP extends Document {
+  email: string;
+  otp: string;
+  expiresAt: Date;
+}
+const OtpSchema = new Schema<IOTP>({
+  email: { type: String, required: true },
+  otp: { type: String, required: true },
+  expiresAt: { type: Date, required: true },
+});
 
-export default mongoose.model("Otp", otpSchema);
+export default model<IOTP>("Otp", OtpSchema);

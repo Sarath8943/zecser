@@ -31,10 +31,17 @@ const authMiddleware = (
 
     const tokenDecoded = jwt.verify(token, secret) as JwtPayload;
 
-    if (!tokenDecoded || typeof tokenDecoded !== "object" || !tokenDecoded.id || !tokenDecoded.role) {
+    if (
+      !tokenDecoded ||
+      typeof tokenDecoded !== "object" ||
+      !tokenDecoded.id ||
+      !tokenDecoded.role
+    ) {
       res.status(401).json({ message: "Unauthorized: Invalid token" });
       return;
     }
+
+    // Removed email verification token check here (if existed)
 
     req.user = {
       id: tokenDecoded.id as string,
@@ -44,7 +51,10 @@ const authMiddleware = (
     next();
   } catch (error: any) {
     console.error("Auth Error:", error.message);
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
