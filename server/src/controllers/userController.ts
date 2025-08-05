@@ -11,28 +11,34 @@ interface CustomRequest extends Request {
 
 export const signup = async (req: Request, res: Response) => {
   try {
-    const { name, email, password, confirmPassword, role } = req.body;
+    const { name, email, phone, password, confirmPassword, role } = req.body;
 
-    if (!name || !email || !password || !confirmPassword) {
+    // Check required fields
+    if (!name || !email || !phone || !password || !confirmPassword) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
+    // Check password match
     if (!passwordsMatch(password, confirmPassword)) {
       return res.status(400).json({ message: "Passwords do not match" });
     }
 
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Create new user
     const newUser = new User({
       name,
       email,
+      phone,
       password: hashedPassword,
-      role: role || "employee",
+      role: role || "user",
     });
 
     await newUser.save();
@@ -43,6 +49,7 @@ export const signup = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Something went wrong", error: error.message });
   }
 };
+
 
 // Login Controller
 export const login = async (req: Request, res: Response): Promise<Response> => {
