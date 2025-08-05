@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { checkUser, forgotPassword, login, logout, signup, verifyOtp } from '../controllers/userController';
+import {  checkUser, forgotPassword, login, logout, signup, verifyOtp } from '../controllers/userController';
 
 
 const router: Router = express.Router();

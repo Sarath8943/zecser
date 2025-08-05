@@ -5,56 +5,65 @@ import { passwordsMatch } from "../utils/passwordUtils";
 import { OTP } from "../models/otpModel";
 import {  sendEmail } from '../utils/otp';
 import userModel from "../models/userModel";
+import dotenv from "dotenv"
 
-
-// Custom Request type to support userId
+dotenv.config();
 interface CustomRequest extends Request {
-  userId?: string;
-}
-
+  userId?: string;}
 
 
 export const signup = async (req: Request, res: Response) => {
   try {
     const { name, email, phone, password, confirmPassword, role } = req.body;
-     console.log("Incoming signup request:", { name, email, phone, role });
+    console.log("📥 Incoming signup request:", { name, email, phone, role });
 
-    if (!name || !email || !phone || !password || !confirmPassword) {
+    // 🔍 Field Validation
+    if (!name || !email || !phone || !password || !confirmPassword || !role) {
       return res.status(400).json({ message: "All fields are required" });
     }
-    if (
-      typeof phone !== "string" ||
-      !/^[0-9]{10}$/.test(phone.trim())
-    ) {
+
+    // ☎️ Phone number validation
+    const phoneStr = phone.toString().trim();
+    if (!/^\d{10}$/.test(phoneStr)) {
       return res.status(400).json({ message: "Phone number must be 10 digits" });
     }
 
+    // 🔐 Password check
     if (!passwordsMatch(password, confirmPassword)) {
       return res.status(400).json({ message: "Passwords do not match" });
     }
 
-    const existingUser = await userModel.findOne({ $or: [{ email }, { phone }] });
+    // 🔁 Check existing user
+    const existingUser = await userModel.findOne({
+      $or: [{ email }, { phone: parseInt(phoneStr) }],
+    });
+
     if (existingUser) {
-      return res.status(400).json({ message: "User with this email or phone already exists" });
+      return res
+        .status(400)
+        .json({ message: "User with this email or phone already exists" });
     }
+
+    // 🔒 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // ✅ Create user
     const newUser = new userModel({
       name,
       email,
-      phone,
+      phone: parseInt(phoneStr),
       password: hashedPassword,
-      role: role || "user",
+      role,
     });
 
     await newUser.save();
 
-    console.log("User successfully saved to DB:", newUser);
+    console.log("✅ User saved to DB:", newUser.email);
 
     return res.status(201).json({ message: "Signup successful" });
-  } catch (error: any) {
-    console.error("Signup Error:", error);
 
+  } catch (error: any) {
+    console.error("❌ Signup Error:", error);
 
     if (error.code === 11000) {
       if (error.keyPattern?.email) {
@@ -64,20 +73,31 @@ export const signup = async (req: Request, res: Response) => {
         return res.status(400).json({ message: "Phone number already exists" });
       }
     }
+
     return res.status(500).json({
       message: "Something went wrong",
       error: error.message || "Internal server error",
     });
   }
 };
-
-
 // Login Controller
-export const login = async (req: Request, res: Response): Promise<Response> => {
+export const login = async (req: Request, res: Response) => {
+  const { email,  phone,password } = req.body;
   try {
-    const { email, password } = req.body;
+  
+console.log("Login request received:", { email, phone });
 
-    const user = await userModel.findOne({ email });
+if (!email && !phone) {
+  return res.status(400).json({ message: "Email or phone is required" });
+}
+
+const user = await userModel.findOne({
+  $or: [{ email }, { phone }],
+});
+
+console.log("User fetched from DB:", user);
+
+
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -93,11 +113,14 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
       { expiresIn: "15m" }
     );
 
-    const refreshToken = jwt.sign(
+        const refreshToken = jwt.sign(
       { userId: user._id },
       process.env.REFRESH_TOKEN_SECRET as string,
       { expiresIn: "7d" }
     );
+
+    console.log("Tokens generated");
+
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
@@ -106,11 +129,16 @@ export const login = async (req: Request, res: Response): Promise<Response> => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res.status(200).json({ accessToken });
-  } catch (error) {
-    return res.status(500).json({ message: "Server error", error });
-  }
-};
+     console.log("Refresh token set");
+
+    return res.status(200).json({message: "Login successful", userId: user._id });
+  } catch (error: any) {
+  console.error("Login Error:", error?.stack || error);
+  return res.status(500).json({
+    message: "Server error",
+    error: error?.message || "Unknown error"
+  });
+}}
 
 // Logout Controller
 export const logout = (req: Request, res: Response): Response => {
