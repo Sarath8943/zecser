@@ -1,7 +1,6 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "",
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
@@ -32,6 +31,15 @@
     "@types/nodemailer": "^6.4.17",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
-  }
+    "typescript": "^5.9.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sarath8943/server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sarath8943/server/issues"
+  },
+  "homepage": "https://github.com/Sarath8943/server#readme",
+  "description": ""
 }

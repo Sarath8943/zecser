@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
-import User from "../models/userModel";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { passwordsMatch } from "../utils/passwordUtils";
 import { OTP } from "../models/otpModel";
 import {  sendEmail } from '../utils/otp';
+import userModel from "../models/userModel";
+
 
 // Custom Request type to support userId
 interface CustomRequest extends Request {
@@ -12,9 +13,11 @@ interface CustomRequest extends Request {
 }
 
 
+
 export const signup = async (req: Request, res: Response) => {
   try {
     const { name, email, phone, password, confirmPassword, role } = req.body;
+     console.log("Incoming signup request:", { name, email, phone, role });
 
     if (!name || !email || !phone || !password || !confirmPassword) {
       return res.status(400).json({ message: "All fields are required" });
@@ -30,13 +33,13 @@ export const signup = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Passwords do not match" });
     }
 
-    const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
+    const existingUser = await userModel.findOne({ $or: [{ email }, { phone }] });
     if (existingUser) {
       return res.status(400).json({ message: "User with this email or phone already exists" });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = new User({
+    const newUser = new userModel({
       name,
       email,
       phone,
@@ -69,14 +72,12 @@ export const signup = async (req: Request, res: Response) => {
 };
 
 
-
-
 // Login Controller
 export const login = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await userModel.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -148,7 +149,7 @@ export const checkUser = async (req: CustomRequest, res: Response): Promise<Resp
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const user = await User.findById(req.userId).select("-password");
+    const user = await userModel.findById(req.userId).select("-password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -164,7 +165,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await userModel.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -209,7 +210,7 @@ export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { email, newPassword } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await userModel.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     user.password = await bcrypt.hash(newPassword, 10);

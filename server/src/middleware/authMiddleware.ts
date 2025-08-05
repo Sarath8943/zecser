@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import jwt, { JwtPayload } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
+
 
 interface TokenPayload {
   id: string;
@@ -14,14 +15,20 @@ const authMiddleware = (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-): void => {
+): any => {
   try {
-    const token = req.cookies.token;
+   
+    const authHeader = req.headers.authorization;
+    const cookieToken = req.cookies?.token;
+
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : cookieToken;
+
     console.log("Token received:", token);
 
     if (!token) {
-      res.status(401).json({ message: "Unauthorized: No token provided" });
-      return;
+      return res.status(401).json({ message: "Unauthorized: No token provided" });
     }
 
     const secret = process.env.JWT_SECRET;
@@ -29,29 +36,33 @@ const authMiddleware = (
       throw new Error("JWT_SECRET is not defined in environment variables");
     }
 
-    const tokenDecoded = jwt.verify(token, secret) as JwtPayload;
 
-    if (
-      !tokenDecoded ||
-      typeof tokenDecoded !== "object" ||
-      !tokenDecoded.id ||
-      !tokenDecoded.role
-    ) {
-      res.status(401).json({ message: "Unauthorized: Invalid token" });
-      return;
+    const decoded = jwt.verify(token, secret) as TokenPayload;
+
+    if (!decoded.id || !decoded.role) {
+      return res.status(401).json({ message: "Unauthorized: Invalid token payload" });
     }
 
-    // Removed email verification token check here (if existed)
-
+  
     req.user = {
-      id: tokenDecoded.id as string,
-      role: tokenDecoded.role as string,
+      id: decoded.id,
+      role: decoded.role,
     };
 
     next();
   } catch (error: any) {
     console.error("Auth Error:", error.message);
-    res.status(500).json({
+
+    
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token expired. Please log in again." });
+    }
+
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({ message: "Invalid token. Please log in again." });
+    }
+
+    return res.status(500).json({
       message: "Internal server error",
       error: error.message,
     });

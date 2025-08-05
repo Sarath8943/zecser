@@ -4,7 +4,7 @@ export interface IUser extends Document {
   _id: Types.ObjectId;
   name: string;
   email: string;
-  phone: string; // ✅ FIXED HERE
+  phone: string;
   password: string;
   confirmPassword?: string;
   forgotPasswordToken?: string;
@@ -16,8 +16,8 @@ const UserSchema: Schema<IUser> = new Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    phone: { type: String, required: true, unique: true }, // ✅ Ensure this matches the model
-    password: { Number: String, required: true },
+  phone: { type: String, unique: true },
+    password: { type: String, required: true },
     forgotPasswordToken: { type: String },
     forgotPasswordExpires: { type: Date },
     role: {
