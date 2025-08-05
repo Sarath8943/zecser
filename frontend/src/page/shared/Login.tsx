@@ -1,59 +1,49 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { FcGoogle } from 'react-icons/fc';
-import { FaFacebook, FaApple } from 'react-icons/fa';
-import { useNavigate, Link } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
-import { axiosInstance } from '../../config/AxiosInstance';
+import { useForm } from "react-hook-form";
+import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { axiosInstance } from "../../config/AxiosInstance";
+import { FcGoogle } from "react-icons/fc";
+import { FaFacebook, FaApple } from "react-icons/fa";
+import { toast } from "react-hot-toast";
 
-interface LoginFormData {
+interface LoginData {
   email: string;
   password: string;
 }
 
-interface ApiResponse {
+interface LoginResponse {
   userId: string;
   username: string;
-  // Add other fields your API might return
+  accessToken?: string;
   message?: string;
-  token?: string;
 }
 
 export default function Login() {
-  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginFormData>();
+  } = useForm<LoginData>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = async (data: LoginData) => {
     setLoading(true);
-     console.log('Form Data:', data);
     try {
-      const response = await axiosInstance.post<ApiResponse>('/user/login', data, {
+      const response = await axiosInstance.post<LoginResponse>("/user/login", data, {
         withCredentials: true,
       });
 
-      toast.success('Login successful', {
-        style: {
-          background: '#334155',
-          color: '#fff',
-        },
+      toast.success("Login successful", {
+        style: { background: "#334155", color: "#fff" },
       });
 
-      // Store user info safely with fallbacks
-      localStorage.setItem('userId', response.data.userId || '');
-      localStorage.setItem('username', response.data.username || '');
-
-      navigate('/home');
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Login failed', {
-        style: {
-          background: '#ef4444',
-          color: '#fff',
-        },
+      localStorage.setItem("userId", response.data.userId || "");
+      localStorage.setItem("username", response.data.username || "");
+      navigate("/Header");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Login failed", {
+        style: { background: "#ef4444", color: "#fff" },
       });
     } finally {
       setLoading(false);
@@ -70,7 +60,7 @@ export default function Login() {
               Login
             </button>
             <button
-              onClick={() => navigate('/signup')}
+              onClick={() => navigate("/signup")}
               className="w-1/2 py-3 font-semibold text-gray-400"
             >
               Sign Up
@@ -78,7 +68,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Login Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-8">
           <h2 className="text-lg font-bold mb-1">Welcome Back!</h2>
           <p className="text-sm text-gray-500 mb-6">
@@ -86,9 +75,9 @@ export default function Login() {
           </p>
 
           <input
-            type="email"
-            placeholder="Email"
-            {...register('email', { required: 'Email is required' })}
+            type="text"
+            placeholder="Email or Phone"
+            {...register("email", { required: "Email or phone is required" })}
             className="w-full mb-2 px-4 py-2 border rounded-md focus:outline-none"
           />
           {errors.email && <p className="text-red-500 text-sm mb-2">{errors.email.message}</p>}
@@ -96,7 +85,7 @@ export default function Login() {
           <input
             type="password"
             placeholder="Password"
-            {...register('password', { required: 'Password is required' })}
+            {...register("password", { required: "Password is required" })}
             className="w-full mb-2 px-4 py-2 border rounded-md focus:outline-none"
           />
           {errors.password && <p className="text-red-500 text-sm mb-2">{errors.password.message}</p>}
@@ -110,20 +99,20 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-2 rounded-full mb-6 disabled:opacity-50"
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? "Logging in..." : "Login"}
           </button>
 
           <div className="text-center text-gray-500 mb-4">Or Continue With</div>
-          <div className="flex justify-center gap-6">
-            <div className="flex flex-col items-center text-gray-600">
+          <div className="flex justify-center gap-6 pb-6">
+            <div className="flex flex-col items-center text-gray-600 cursor-pointer">
               <FcGoogle size={24} />
               <span className="text-xs mt-1">Google</span>
             </div>
-            <div className="flex flex-col items-center text-blue-600">
+            <div className="flex flex-col items-center text-blue-600 cursor-pointer">
               <FaFacebook size={24} />
               <span className="text-xs mt-1">Facebook</span>
             </div>
-            <div className="flex flex-col items-center text-black">
+            <div className="flex flex-col items-center text-black cursor-pointer">
               <FaApple size={24} />
               <span className="text-xs mt-1">Apple ID</span>
             </div>

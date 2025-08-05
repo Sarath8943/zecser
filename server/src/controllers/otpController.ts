@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import otpModel from "../models/otpModel";
+import { OTP } from "../models/otpModel";
 import { generateOtp } from "../utils/otp";
-import { sendOtpEmail } from "../utils/otp";
+import {  sendEmail } from "../utils/otp";
 import { otpExpiry } from "../utils/otp";
 import User from "../models/userModel";
 
@@ -12,13 +12,13 @@ export const requestOTP = async (req: Request, res: Response) => {
     const otp = generateOtp();
     const expiresAt = otpExpiry();
 
-    await otpModel.findOneAndUpdate(
+    await OTP.findOneAndUpdate(
       { email },
       { otp, expiresAt },
       { upsert: true, new: true }
     );
 
-    await sendOtpEmail(email, otp);
+    await  sendEmail(email, otp);
 
     res.json({ message: "OTP sent to email" });
   } catch (error: unknown) {
@@ -35,7 +35,7 @@ export const verifyOTP = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, otp } = req.body;
 
-    const record = await otpModel.findOne({ email });
+    const record = await OTP.findOne({ email });
 
     if (!record) {
       res.status(400).json({ message: "OTP not found" });
@@ -47,7 +47,7 @@ export const verifyOTP = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (record.expiresAt < new Date()) {
+    if (record. createdAt< new Date()) {
       res.status(400).json({ message: "OTP expired" });
       return;
     }
@@ -58,7 +58,7 @@ export const verifyOTP = async (req: Request, res: Response): Promise<void> => {
       existingUser = await User.create({ email });
     }
 
-    await otpModel.deleteOne({ email });
+    await OTP.deleteOne({ email });
 
     res.json({
       message: "Login successful",

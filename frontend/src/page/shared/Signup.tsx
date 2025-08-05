@@ -40,22 +40,11 @@ const SignUpPage: React.FC = () => {
   const validateForm = () => {
     const newErrors: Partial<Record<keyof SignUpFormData, string>> = {};
 
-    if (
-      !formData.name.trim() &&
-      !formData.email.trim() &&
-      !formData.phone.trim() &&
-      !formData.password.trim() &&
-      !formData.confirmPassword.trim()
-    ) {
-      setMessage("All fields are required");
-      return false;
-    }
-
     if (!formData.name.trim()) newErrors.name = "Name is required";
     if (!formData.email) {
       newErrors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Invalid email";
+      newErrors.email = "Invalid email format";
     }
 
     if (!formData.phone.trim()) {
@@ -95,7 +84,10 @@ const SignUpPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const { confirmPassword, ...signupData } = formData;
+      const { confirmPassword, ...rest } = formData;
+      const signupData = { ...rest, role: "user" }; // ✅ Explicitly include role
+
+      console.log("Sending signup data:", signupData);
 
       localStorage.setItem("signupData", JSON.stringify(signupData));
 
@@ -107,15 +99,10 @@ const SignUpPage: React.FC = () => {
         body: JSON.stringify(signupData),
       });
 
-      const contentType = response.headers.get("content-type");
-      if (!contentType?.includes("application/json")) {
-        throw new Error("Server returned unexpected content (not JSON). Please check the API URL.");
-      }
-
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.message || "An error occurred during sign up.");
+        throw new Error(result.message || "Signup failed.");
       }
 
       navigate("/verify");
@@ -207,8 +194,6 @@ const SignUpPage: React.FC = () => {
           {errors.confirmPassword && (
             <p className="text-red-500 text-sm mb-2">{errors.confirmPassword}</p>
           )}
-
-          <input type="hidden" name="role" value="user" />
 
           <label className="flex items-center text-sm mb-4">
             <input
