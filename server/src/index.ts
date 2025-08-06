@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 import connectDB from "./config/db";
 import userRoutes from "./routes/userRoutes";
 import otpRoutes from "./routes/otpRoutes"; 
-
+import { Types } from 'mongoose';
 
 dotenv.config();
 
@@ -14,14 +14,15 @@ const PORT = process.env.PORT || 5000;
 
 connectDB();
 
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true,
-}));
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true,
+}));
 
 app.use("/api/user", userRoutes);
 

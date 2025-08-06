@@ -1,21 +1,23 @@
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { axiosInstance } from "../../config/AxiosInstance";
+import {  useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebook, FaApple } from "react-icons/fa";
 import { toast } from "react-hot-toast";
+import { axiosInstance } from "../../config/AxiosInstance";
 
 interface LoginData {
-  email: string;
+  emailOrPhone: string;
   password: string;
 }
 
 interface LoginResponse {
-  userId: string;
-  username: string;
-  accessToken?: string;
-  message?: string;
+  user: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+  };
 }
 
 export default function Login() {
@@ -24,24 +26,37 @@ export default function Login() {
     handleSubmit,
     formState: { errors },
   } = useForm<LoginData>();
+
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (data: LoginData) => {
     setLoading(true);
+
+    const isPhone = /^\d{10}$/.test(data.emailOrPhone.trim());
+    const payload = isPhone
+      ? { phone: data.emailOrPhone.trim(), password: data.password }
+      : { email: data.emailOrPhone.trim(), password: data.password };
+
     try {
-      const response = await axiosInstance.post<LoginResponse>("/user/login", data, {
+      const response = await axiosInstance.post<LoginResponse>("/user/login", payload, {
         withCredentials: true,
       });
 
-      toast.success("Login successful", {
-        style: { background: "#334155", color: "#fff" },
-      });
+      if (response.data.user?.id) {
+        localStorage.setItem("userId", response.data.user.id);
+        localStorage.setItem("username", response.data.user.name || "");
 
-      localStorage.setItem("userId", response.data.userId || "");
-      localStorage.setItem("username", response.data.username || "");
-      navigate("/Header");
+        toast.success("Login successful", {
+          style: { background: "#334155", color: "#fff" },
+        });
+
+        navigate("/Header");
+      } else {
+        throw new Error("Invalid login response");
+      }
     } catch (err: any) {
+      console.error("Login error:", err);
       toast.error(err?.response?.data?.message || "Login failed", {
         style: { background: "#ef4444", color: "#fff" },
       });
@@ -77,10 +92,16 @@ export default function Login() {
           <input
             type="text"
             placeholder="Email or Phone"
-            {...register("email", { required: "Email or phone is required" })}
+            {...register("emailOrPhone", {
+              required: "Email or phone is required",
+              pattern: {
+                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$|^\d{10}$/,
+                message: "Enter a valid email or 10-digit phone number",
+              },
+            })}
             className="w-full mb-2 px-4 py-2 border rounded-md focus:outline-none"
           />
-          {errors.email && <p className="text-red-500 text-sm mb-2">{errors.email.message}</p>}
+          {errors.emailOrPhone && <p className="text-red-500 text-sm mb-2">{errors.emailOrPhone.message}</p>}
 
           <input
             type="password"
@@ -88,9 +109,11 @@ export default function Login() {
             {...register("password", { required: "Password is required" })}
             className="w-full mb-2 px-4 py-2 border rounded-md focus:outline-none"
           />
-          {errors.password && <p className="text-red-500 text-sm mb-2">{errors.password.message}</p>}
+          {errors.password && (
+            <p className="text-red-500 text-sm mb-2">{errors.password.message}</p>
+          )}
 
-          <Link to="/forgot-password" className="text-right text-sm text-blue-500 mb-4 block">
+          <Link to="/reset-password" className="text-right text-sm text-blue-500 mb-4 block">
             Forgot Password
           </Link>
 

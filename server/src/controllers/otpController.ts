@@ -4,6 +4,8 @@ import { generateOtp } from "../utils/otp";
 import {  sendEmail } from "../utils/otp";
 import { otpExpiry } from "../utils/otp";
 import User from "../models/userModel";
+import bcrypt from 'bcrypt';
+
 
 export const requestOTP = async (req: Request, res: Response) => {
   try {
@@ -31,11 +33,17 @@ export const requestOTP = async (req: Request, res: Response) => {
   }
 };
 
+
 export const verifyOTP = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, otp } = req.body;
 
-    const record = await OTP.findOne({ email });
+    if (!email || !otp) {
+      res.status(400).json({ message: "All fields are required" });
+      return;
+    }
+
+    const record = await OTP.findOne({ otp });
 
     if (!record) {
       res.status(400).json({ message: "OTP not found" });
@@ -47,27 +55,18 @@ export const verifyOTP = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (record. createdAt< new Date()) {
+    const expiryTime = new Date(record.createdAt.getTime() + 10 * 60 * 1000);
+    if (new Date() > expiryTime) {
+      await OTP.deleteOne({ email });
       res.status(400).json({ message: "OTP expired" });
       return;
     }
 
-    let existingUser = await User.findOne({ email });
-
-    if (!existingUser) {
-      existingUser = await User.create({ email });
-    }
-
     await OTP.deleteOne({ email });
 
-    res.json({
-      message: "Login successful",
-      user: {
-        _id: existingUser._id,
-        email: existingUser.email,
-      },
-    });
-    return;
+    // ✅ Send success response
+    res.status(200).json({ message: "OTP verified successfully" });
+
   } catch (error: unknown) {
     console.error("Verify OTP Error:", error);
     if (error instanceof Error) {
@@ -75,6 +74,7 @@ export const verifyOTP = async (req: Request, res: Response): Promise<void> => {
     } else {
       res.status(500).json({ message: "Internal server error" });
     }
-    return;
   }
 };
+
+

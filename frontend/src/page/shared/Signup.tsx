@@ -3,19 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebook, FaApple } from "react-icons/fa";
 
+
 interface SignUpFormData {
   name: string;
   email: string;
   phone: string;
   password: string;
   confirmPassword: string;
-  role: string;
+  // role: string;
 }
+
+
 
 const SignUpPage: React.FC = () => {
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState<SignUpFormData>({
+  const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
@@ -76,42 +79,34 @@ const SignUpPage: React.FC = () => {
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setMessage("");
+ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setMessage("");
 
-    if (!validateForm()) return;
+  if (!validateForm()) return;
 
-    setLoading(true);
-    try {
-      const { confirmPassword, ...rest } = formData;
-      const signupData = { ...rest, role: "user" }; // ✅ Explicitly include role
+  setLoading(true);
+  try {
+  const { confirmPassword, ...signupData } = formData;
 
-      console.log("Sending signup data:", signupData);
+  localStorage.setItem("pendingSignup", JSON.stringify(signupData)); // ✅ Use cleaned data
 
-      localStorage.setItem("signupData", JSON.stringify(signupData));
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/sign`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(signupData),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || "Signup failed.");
+  navigate("/verify", { state: { email: signupData.email,} });
+  } catch (error: any) {
+    if (error.response) {
+      const { field, message } = error.response.data;
+      if (field) {
+        setErrors((prev) => ({ ...prev, [field]: message }));
       }
-
-      navigate("/verify");
-    } catch (error: any) {
+      setMessage(message);
+    } else {
       setMessage(error.message || "An unexpected error occurred.");
-    } finally {
-      setLoading(false);
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
@@ -148,7 +143,7 @@ const SignUpPage: React.FC = () => {
             name="name"
             placeholder="Full Name"
             value={formData.name}
-            onChange={handleChange}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             className="w-full mb-3 px-4 py-2 border rounded-md focus:outline-none"
           />
           {errors.name && <p className="text-red-500 text-sm mb-2">{errors.name}</p>}
@@ -158,7 +153,7 @@ const SignUpPage: React.FC = () => {
             name="email"
             placeholder="Email"
             value={formData.email}
-            onChange={handleChange}
+            onChange={(e) =>   setFormData((prev) => ({ ...prev, email: e.target.value }))}
             className="w-full mb-3 px-4 py-2 border rounded-md focus:outline-none"
           />
           {errors.email && <p className="text-red-500 text-sm mb-2">{errors.email}</p>}
@@ -235,3 +230,7 @@ const SignUpPage: React.FC = () => {
 };
 
 export default SignUpPage;
+
+
+
+

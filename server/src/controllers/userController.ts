@@ -1,37 +1,49 @@
-import { Request, Response } from "express";
+import { Request, Response, } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { passwordsMatch } from "../utils/passwordUtils";
 import { OTP } from "../models/otpModel";
 import {  sendEmail } from '../utils/otp';
 import userModel from "../models/userModel";
+import { 
+  generateAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+  getTokenFromHeader
+} from "../utils/token";
 import dotenv from "dotenv"
-
 dotenv.config();
 interface CustomRequest extends Request {
   userId?: string;}
 
 
+
 export const signup = async (req: Request, res: Response) => {
   try {
-    const { name, email, phone, password, confirmPassword, role } = req.body;
-    console.log("📥 Incoming signup request:", { name, email, phone, role });
+    const { name, email, phone, password, confirmPassword } = req.body;
+    console.log("📥 Incoming signup request:", { name, email, phone });
 
-    // 🔍 Field Validation
-    if (!name || !email || !phone || !password || !confirmPassword || !role) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
+
 
     // ☎️ Phone number validation
     const phoneStr = phone.toString().trim();
     if (!/^\d{10}$/.test(phoneStr)) {
-      return res.status(400).json({ message: "Phone number must be 10 digits" });
+      return res.status(400).json({ 
+        message: "Phone number must be 10 digits",
+        field: "phone",
+        success: false
+      });
     }
 
     // 🔐 Password check
-    if (!passwordsMatch(password, confirmPassword)) {
-      return res.status(400).json({ message: "Passwords do not match" });
-    }
+    // if (!passwordsMatch(password, confirmPassword)) {
+    //   return res.status(400).json({ 
+    //     message: "Passwords do not match",
+    //     field: "confirmPassword",
+    //     success: false
+    //   });
+    // }
 
     // 🔁 Check existing user
     const existingUser = await userModel.findOne({
@@ -39,9 +51,12 @@ export const signup = async (req: Request, res: Response) => {
     });
 
     if (existingUser) {
-      return res
-        .status(400)
-        .json({ message: "User with this email or phone already exists" });
+      const field = existingUser.email === email ? "email" : "phone";
+      return res.status(400).json({ 
+        message: `User with this ${field} already exists`,
+        field,
+        success: false
+      });
     }
 
     // 🔒 Hash password
@@ -53,122 +68,234 @@ export const signup = async (req: Request, res: Response) => {
       email,
       phone: parseInt(phoneStr),
       password: hashedPassword,
-      role,
+      role:"user",
     });
 
     await newUser.save();
 
     console.log("✅ User saved to DB:", newUser.email);
 
-    return res.status(201).json({ message: "Signup successful" });
+    return res.status(201).json({ 
+      message: "Signup successful", 
+      success: true,
+      userId: newUser._id 
+    });
 
   } catch (error: any) {
     console.error("❌ Signup Error:", error);
 
     if (error.code === 11000) {
-      if (error.keyPattern?.email) {
-        return res.status(400).json({ message: "Email already exists" });
-      }
-      if (error.keyPattern?.phone) {
-        return res.status(400).json({ message: "Phone number already exists" });
-      }
+      const field = error.keyPattern?.email ? "email" : "phone";
+      return res.status(400).json({ 
+        message: `${field === "email" ? "Email" : "Phone number"} already exists`,
+        field,
+        success: false
+      });
     }
 
     return res.status(500).json({
       message: "Something went wrong",
       error: error.message || "Internal server error",
+      success: false
     });
   }
 };
-// Login Controller
+
+
 export const login = async (req: Request, res: Response) => {
-  const { email,  phone,password } = req.body;
-  try {
+  const { email, phone, password } = req.body;
   
-console.log("Login request received:", { email, phone });
+  try {
+    console.log("Login request received:", { email, phone });
 
-if (!email && !phone) {
-  return res.status(400).json({ message: "Email or phone is required" });
-}
+    // Validate input
+    if ((!email && !phone) || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Email or phone and password are required" 
+      });
+    }
 
-const user = await userModel.findOne({
-  $or: [{ email }, { phone }],
-});
+    if (email && phone) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Please provide either email or phone, not both" 
+      });
+    }
 
-console.log("User fetched from DB:", user);
+    // Verify JWT secrets
+    if (!process.env.ACCESS_TOKEN_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
+      console.error("JWT Error: Secrets not configured");
+      throw new Error("Server configuration error");
+    }
 
+    // Find user
+    const query = email ? { email } : { phone: phone.toString().trim() };
+    const user = await userModel.findOne(query).select('+password');
 
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ 
+        success: false,
+        message: "Invalid credentials" 
+      });
     }
 
+    // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ 
+        success: false,
+        message: "Invalid credentials" 
+      });
     }
 
+    // Convert ObjectId to string for JWT
+    const userIdString = user._id.toString();
+
+    // Generate tokens
     const accessToken = jwt.sign(
-      { userId: user._id, role: user.role },
-      process.env.ACCESS_TOKEN_SECRET as string,
-      { expiresIn: "15m" }
-    );
+      { userId: userIdString, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "15m", algorithm: "HS256" }
+    ) as unknown as string; // Type assertion
 
-        const refreshToken = jwt.sign(
-      { userId: user._id },
-      process.env.REFRESH_TOKEN_SECRET as string,
-      { expiresIn: "7d" }
-    );
+    const refreshToken = jwt.sign(
+      { userId: userIdString },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: "7d", algorithm: "HS256" }
+    ) as unknown as string; // Type assertion
 
-    console.log("Tokens generated");
-
-
+    // Set refresh token cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-     console.log("Refresh token set");
-
-    return res.status(200).json({message: "Login successful", userId: user._id });
-  } catch (error: any) {
-  console.error("Login Error:", error?.stack || error);
-  return res.status(500).json({
-    message: "Server error",
-    error: error?.message || "Unknown error"
-  });
-}}
-
-// Logout Controller
-export const logout = (req: Request, res: Response): Response => {
-  res.clearCookie("refreshToken");
-  return res.status(200).json({ message: "Logged out successfully" });
-};
-
-// Refresh Token Controller
-export const refreshToken = (req: Request, res: Response): Response => {
-  const token = req.cookies.refreshToken;
-  if (!token) {
-    return res.status(401).json({ message: "Refresh token not found" });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET as string) as {
-      userId: string;
+    // Create user response object
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role
     };
 
-    const accessToken = jwt.sign(
-      { userId: decoded.userId },
-      process.env.ACCESS_TOKEN_SECRET as string,
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      accessToken,
+      accessTokenExpires: Date.now() + 15 * 60 * 1000,
+      user: userResponse
+    });
+
+  } catch (error: any) {
+    console.error("Login Error:", error);
+    
+    if (error.message === "Server configuration error") {
+      return res.status(500).json({
+        success: false,
+        message: "Server misconfiguration - contact administrator",
+        error: "JWT secrets not configured"
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred during login",
+      error: error.message
+    });
+  }
+};
+
+
+
+// Logout Controller
+export const logout = async (req: Request, res: Response) => {
+  try {
+    // Clear the refresh token cookie
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth/refresh'
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Logout successful"
+    });
+
+  } catch (error: any) {
+    console.error("Logout Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred during logout",
+      error: error.message
+    });
+  }
+};
+
+
+export const refreshAccessToken = async (req: Request, res: Response) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Refresh token missing"
+      });
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET!) as { userId: string };
+    
+    // Find user
+    const user = await userModel.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET!,
       { expiresIn: "15m" }
     );
 
-    return res.status(200).json({ accessToken });
-  } catch (err) {
-    return res.status(403).json({ message: "Invalid refresh token" });
+    return res.status(200).json({
+      success: true,
+      accessToken: newAccessToken,
+      accessTokenExpires: Date.now() + 15 * 60 * 1000
+    });
+
+  } catch (error: any) {
+    console.error("Refresh Token Error:", error);
+    
+    // Clear invalid refresh token
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth/refresh'
+    });
+    
+    return res.status(401).json({
+      success: false,
+      message: "Invalid refresh token",
+      error: error.message
+    });
   }
 };
+
+
+
 
 // Check User (for frontend auth)
 export const checkUser = async (req: CustomRequest, res: Response): Promise<Response> => {
@@ -188,28 +315,25 @@ export const checkUser = async (req: CustomRequest, res: Response): Promise<Resp
   }
 };
 
-
-export const forgotPassword = async (req: Request, res: Response) => {
+export const resetPassword = async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({ message: 'Email and password required' });
+    }
 
     const user = await userModel.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
 
-    await OTP.deleteMany({ email }); // delete existing OTPs
-
-    const hashedOTP = await bcrypt.hash(otpCode, 10);
-    await OTP.create({ email, otp: hashedOTP, createdAt: new Date() });
-
-   await sendEmail(email, `Your OTP is: ${otpCode}`);
-
-
-    return res.status(200).json({ message: 'OTP sent to email' });
+    return res.status(200).json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Error in forgotPassword:', error);
-    return res.status(500).json({ message: 'Server error' });
+    console.error('Reset password error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
 };
 
@@ -229,24 +353,6 @@ export const verifyOtp = async (req: Request, res: Response) => {
     return res.status(200).json({ message: 'OTP verified' });
   } catch (error) {
     console.error('Error in verifyOtp:', error);
-    return res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Reset Password
-export const resetPassword = async (req: Request, res: Response) => {
-  try {
-    const { email, newPassword } = req.body;
-
-    const user = await userModel.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    user.password = await bcrypt.hash(newPassword, 10);
-    await user.save();
-
-    return res.status(200).json({ message: 'Password changed successfully' });
-  } catch (error) {
-    console.error('Error in resetPassword:', error);
     return res.status(500).json({ message: 'Server error' });
   }
 };
