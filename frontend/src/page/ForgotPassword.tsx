@@ -17,7 +17,7 @@ export function ResetPassword() {
     if (!email) return toast.error('Please enter your email');
     setLoading(true);
     try {
-      const res = await axiosInstance.post<{ message: string }>('/user/send-otp', { email });
+      const res = await axiosInstance.post<{ message: string }>('/otp/generate', { email });
       toast.success(res.data.message || 'OTP sent');
       setOtpSent(true);
     } catch (err: any) {
@@ -31,7 +31,7 @@ export function ResetPassword() {
     if (!otp) return toast.error('Enter the OTP');
     setLoading(true);
     try {
-      const res = await axiosInstance.post<{ message: string }>('/user/verify-otp', { email, otp });
+      const res = await axiosInstance.post<{ message: string }>('/otp/verify', { email, otp });
       toast.success(res.data.message || 'OTP Verified');
       setOtpVerified(true);
     } catch (err: any) {

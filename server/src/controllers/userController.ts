@@ -315,27 +315,6 @@ export const checkUser = async (req: CustomRequest, res: Response): Promise<Resp
   }
 };
 
-export const resetPassword = async (req: Request, res: Response) => {
-  try {
-    const { email, newPassword } = req.body;
-
-    if (!email || !newPassword) {
-      return res.status(400).json({ message: 'Email and password required' });
-    }
-
-    const user = await userModel.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
-    await user.save();
-
-    return res.status(200).json({ message: 'Password changed successfully' });
-  } catch (error) {
-    console.error('Reset password error:', error);
-    return res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
 
 // Verify OTP
 export const verifyOtp = async (req: Request, res: Response) => {
@@ -356,3 +335,5 @@ export const verifyOtp = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Server error' });
   }
 };
+
+
